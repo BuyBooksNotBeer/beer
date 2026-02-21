@@ -1,319 +1,202 @@
-//qwen 3.5 plus
 #include <WiFi.h>
+#include <WebServer.h>
 #include "Display_ST7789.h"
+#include <math.h>
+#include "esp_wifi.h"
+#include "driver/temperature_sensor.h"
 
-// Simple 5x7 bitmap font (ASCII 32-126)
-const uint8_t font5x7[][5] = {
-  {0x00,0x00,0x00,0x00,0x00}, {0x00,0x00,0x5F,0x00,0x00},
-  {0x00,0x07,0x00,0x07,0x00}, {0x14,0x7F,0x14,0x7F,0x14},
-  {0x24,0x2A,0x7F,0x2A,0x12}, {0x23,0x13,0x08,0x64,0x62},
-  {0x36,0x49,0x55,0x22,0x50}, {0x00,0x05,0x03,0x00,0x00},
-  {0x00,0x1C,0x22,0x41,0x00}, {0x00,0x41,0x22,0x1C,0x00},
-  {0x14,0x08,0x3E,0x08,0x14}, {0x08,0x08,0x3E,0x08,0x08},
-  {0x00,0x50,0x30,0x00,0x00}, {0x08,0x08,0x08,0x08,0x08},
-  {0x00,0x60,0x60,0x00,0x00}, {0x20,0x10,0x08,0x04,0x02},
-  {0x3E,0x51,0x49,0x45,0x3E}, {0x00,0x42,0x7F,0x40,0x00},
-  {0x42,0x61,0x51,0x49,0x46}, {0x21,0x41,0x45,0x4B,0x31},
-  {0x18,0x14,0x12,0x7F,0x10}, {0x27,0x45,0x45,0x45,0x39},
-  {0x3C,0x4A,0x49,0x49,0x30}, {0x01,0x71,0x09,0x05,0x03},
-  {0x36,0x49,0x49,0x49,0x36}, {0x06,0x49,0x49,0x29,0x1E},
-  {0x00,0x36,0x36,0x00,0x00}, {0x00,0x56,0x36,0x00,0x00},
-  {0x08,0x14,0x22,0x41,0x00}, {0x14,0x14,0x14,0x14,0x14},
-  {0x00,0x41,0x22,0x14,0x08}, {0x02,0x01,0x51,0x09,0x06},
-  {0x32,0x49,0x79,0x41,0x3E}, {0x7E,0x11,0x11,0x11,0x7E},
-  {0x7F,0x49,0x49,0x49,0x36}, {0x3E,0x41,0x41,0x41,0x22},
-  {0x7F,0x41,0x41,0x22,0x1C}, {0x7F,0x49,0x49,0x49,0x41},
-  {0x7F,0x09,0x09,0x09,0x01}, {0x3E,0x41,0x49,0x49,0x7A},
-  {0x7F,0x08,0x08,0x08,0x7F}, {0x00,0x41,0x7F,0x41,0x00},
-  {0x20,0x40,0x41,0x3F,0x01}, {0x7F,0x08,0x14,0x22,0x41},
-  {0x7F,0x40,0x40,0x40,0x40}, {0x7F,0x02,0x0C,0x02,0x7F},
-  {0x7F,0x04,0x08,0x10,0x7F}, {0x3E,0x41,0x41,0x41,0x3E},
-  {0x7F,0x09,0x19,0x29,0x46}, {0x46,0x49,0x49,0x49,0x31},
-  {0x01,0x01,0x7F,0x01,0x01}, {0x3F,0x40,0x40,0x40,0x3F},
-  {0x1F,0x20,0x40,0x20,0x1F}, {0x3F,0x40,0x38,0x40,0x3F},
-  {0x63,0x14,0x08,0x14,0x63}, {0x07,0x08,0x70,0x08,0x07},
-  {0x61,0x51,0x49,0x45,0x43}, {0x00,0x7F,0x41,0x41,0x00},
-  {0x02,0x04,0x08,0x10,0x20}, {0x00,0x41,0x41,0x7F,0x00},
-  {0x04,0x02,0x01,0x02,0x04}, {0x40,0x40,0x40,0x40,0x40},
-  {0x00,0x01,0x02,0x04,0x00}, {0x20,0x54,0x54,0x54,0x78},
-  {0x7F,0x48,0x44,0x44,0x38}, {0x38,0x44,0x44,0x44,0x20},
-  {0x38,0x44,0x44,0x48,0x7F}, {0x38,0x54,0x54,0x54,0x18},
-  {0x08,0x7E,0x09,0x01,0x02}, {0x08,0x14,0x54,0x54,0x3C},
-  {0x7F,0x08,0x04,0x04,0x78}, {0x00,0x44,0x7D,0x40,0x00},
-  {0x20,0x40,0x44,0x3D,0x00}, {0x7F,0x10,0x28,0x44,0x00},
-  {0x00,0x41,0x7F,0x40,0x00}, {0x7C,0x04,0x18,0x04,0x7C},
-  {0x7C,0x08,0x04,0x04,0x78}, {0x38,0x44,0x44,0x44,0x38},
-  {0x7C,0x14,0x14,0x14,0x08}, {0x08,0x14,0x14,0x18,0x7C},
-  {0x7C,0x08,0x04,0x04,0x08}, {0x48,0x54,0x54,0x54,0x20},
-  {0x04,0x3F,0x44,0x40,0x20}, {0x3C,0x40,0x40,0x20,0x7C},
-  {0x0C,0x50,0x50,0x50,0x3C}, {0x44,0x28,0x10,0x28,0x44},
-  {0x00,0x08,0x36,0x41,0x00}, {0x00,0x00,0x7F,0x00,0x00},
-  {0x00,0x41,0x36,0x08,0x00}, {0x10,0x08,0x08,0x10,0x08},
-  {0x78,0x46,0x41,0x46,0x78}
+// --- Simulation Constants ---
+#define BALL_RADIUS 5
+#define BAR_W 40
+#define BAR_H 8
+#define BALL_MASS 1.0f
+#define BAR_MASS 2.0f
+
+// --- Global State ---
+uint16_t* frameBuffer;
+WebServer server(80);
+
+temperature_sensor_handle_t temp_sensor = NULL;
+
+struct Object {
+  float x, y, vx, vy, angle, av; // x, y, velocity, angle, angular velocity
+  uint16_t color;
 };
 
-// Color definitions (RGB565)
-#define BLACK       0x0000
-#define WHITE       0xFFFF
-#define GREEN       0x07E0
-#define YELLOW      0xFFE0
-#define RED         0xF800
-#define BLUE        0x001F
-#define GRAY        0x8410
+Object ball = {80, 160, 2.5, 3.1, 0, 0, 0xF800}; // Red ball
+Object bar = {50, 50, 1.5, 1.2, 0.5, 0.05, 0x07E0}; // Green bar
+int contactCount = 0;
+bool barPaused = false;
+float speedMultiplier = 1.0f;
 
-// Display dimensions
-#define DISPLAY_WIDTH   172
-#define DISPLAY_HEIGHT  320
-#define FONT_WIDTH      6
-#define FONT_HEIGHT     8
-#define LINE_HEIGHT     12
-#define MAX_APS         18
-
-// WiFi scan data structure
-struct APInfo {
-  char ssid[33];
-  int32_t rssi;
-  bool encrypted;
-};
-
-APInfo apList[MAX_APS];
-int apCount = 0;
-
-// Pixel buffer for single pixel drawing
-uint16_t pixelBuffer[1];
-
-// Function prototypes
-void drawPixel(uint16_t x, uint16_t y, uint16_t color);
-void drawChar(uint16_t x, uint16_t y, char c, uint16_t color, uint16_t bg);
-void drawString(uint16_t x, uint16_t y, const char* str, uint16_t color, uint16_t bg);
-void drawString(uint16_t x, uint16_t y, String str, uint16_t color, uint16_t bg);
-void drawSignalBar(uint16_t x, uint16_t y, int rssi, uint16_t width, uint16_t height);
-void drawLockIcon(uint16_t x, uint16_t y, uint16_t size, uint16_t color);
-void clearScreen(uint16_t color);
-void fillRect(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color);
-void sortAPsByRSSI();
-int scanWiFi();
-void displayWiFiList();
-
-// Draw a single pixel using LCD_addWindow
-void drawPixel(uint16_t x, uint16_t y, uint16_t color) {
-  if (x >= DISPLAY_WIDTH || y >= DISPLAY_HEIGHT) return;
-  pixelBuffer[0] = color;
-  LCD_addWindow(x, y, x, y, pixelBuffer);
+// --- Helper: Random Color ---
+uint16_t randomColor() {
+  return ((random(0, 31) << 11) | (random(0, 63) << 5) | random(0, 31));
 }
 
-// Fill rectangle
-void fillRect(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color) {
-  if (x1 >= DISPLAY_WIDTH || y1 >= DISPLAY_HEIGHT) return;
-  if (x2 >= DISPLAY_WIDTH) x2 = DISPLAY_WIDTH - 1;
-  if (y2 >= DISPLAY_HEIGHT) y2 = DISPLAY_HEIGHT - 1;
-  
-  uint16_t width = x2 - x1 + 1;
-  uint16_t height = y2 - y1 + 1;
-  uint16_t* buffer = new uint16_t[width];
-  
-  for (uint16_t i = 0; i < width; i++) {
-    buffer[i] = color;
+// --- Web Server Handlers ---
+void handleRoot() {
+  String html = "<h1>Physics Control</h1>";
+  html += "<p><a href='/speedUp'><button>Ball Speed +</button></a> ";
+  html += "<a href='/speedDown'><button>Ball Speed -</button></a></p>";
+  html += "<p><a href='/pause'><button>Toggle Bar Pause</button></a></p>";
+  html += "<p><a href='/reset'><button>Reset Sim</button></a></p>";
+  server.send(200, "text/html", html);
+}
+
+// --- Physics Engine ---
+void updatePhysics() {
+  // Update Ball
+  ball.x += ball.vx * speedMultiplier;
+  ball.y += ball.vy * speedMultiplier;
+
+  // Update Bar
+  if (!barPaused) {
+    bar.x += bar.vx;
+    bar.y += bar.vy;
+    bar.angle += bar.av;
   }
-  
-  for (uint16_t row = 0; row < height; row++) {
-    LCD_addWindow(x1, y1 + row, x2, y1 + row, buffer);
+
+  // Wall Bounces (Ball)
+  if (ball.x <= BALL_RADIUS || ball.x >= LCD_WIDTH - BALL_RADIUS) ball.vx *= -1;
+  if (ball.y <= BALL_RADIUS || ball.y >= LCD_HEIGHT - BALL_RADIUS) ball.vy *= -1;
+
+  // Wall Bounces (Bar Corners)
+  // Simplified: check bar center + rough radius for bounce
+  if (bar.x <= 20 || bar.x >= LCD_WIDTH - 20) bar.vx *= -1;
+  if (bar.y <= 20 || bar.y >= LCD_HEIGHT - 20) bar.vy *= -1;
+
+  // --- Ball vs Rotating Bar Collision ---
+  // 1. Transform ball to bar's local coordinate system
+  float dx = ball.x - bar.x;
+  float dy = ball.y - bar.y;
+  float localX = dx * cos(-bar.angle) - dy * sin(-bar.angle);
+  float localY = dx * sin(-bar.angle) + dy * cos(-bar.angle);
+
+  // 2. Check collision with axis-aligned box
+  if (abs(localX) < (BAR_W / 2 + BALL_RADIUS) && abs(localY) < (BAR_H / 2 + BALL_RADIUS)) {
+    // Collision detected!
+    contactCount++;
+    ball.color = randomColor();
+    bar.color = randomColor();
+
+    // Simple elastic response: swap some momentum
+    float tempVx = ball.vx;
+    float tempVy = ball.vy;
+    ball.vx = (ball.vx * (BALL_MASS - BAR_MASS) + (2 * BAR_MASS * bar.vx)) / (BALL_MASS + BAR_MASS);
+    bar.vx = (bar.vx * (BAR_MASS - BALL_MASS) + (2 * BALL_MASS * tempVx)) / (BALL_MASS + BAR_MASS);
+    
+    ball.vy *= -1; // Reflect
+    bar.av += 0.02; // Add some spin on impact
   }
-  
-  delete[] buffer;
 }
 
-// Clear screen
-void clearScreen(uint16_t color) {
-  fillRect(0, 0, DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1, color);
+// --- Drawing Functions ---
+void clearBuffer() { memset(frameBuffer, 0, LCD_WIDTH * LCD_HEIGHT * 2); }
+
+void drawPixel(int x, int y, uint16_t color) {
+  if (x >= 0 && x < LCD_WIDTH && y >= 0 && y < LCD_HEIGHT)
+    frameBuffer[y * LCD_WIDTH + x] = color;
 }
 
-// Draw character
-void drawChar(uint16_t x, uint16_t y, char c, uint16_t color, uint16_t bg) {
-  if (c < 32 || c > 127) c = 127;
-  c -= 32;
-  
-  for (uint8_t col = 0; col < 5; col++) {
-    uint8_t pixel = font5x7[c][col];
-    for (uint8_t row = 0; row < 7; row++) {
-      if (pixel & (1 << row)) {
-        drawPixel(x + col, y + row, color);
-      } else if (bg != color) {
-        drawPixel(x + col, y + row, bg);
+void drawBall() {
+  for (int i = -BALL_RADIUS; i < BALL_RADIUS; i++) {
+    for (int j = -BALL_RADIUS; j < BALL_RADIUS; j++) {
+      if (i * i + j * j <= BALL_RADIUS * BALL_RADIUS)
+        drawPixel(ball.x + i, ball.y + j, ball.color);
+    }
+  }
+}
+
+void drawBar() {
+  float c = cos(bar.angle);
+  float s = sin(bar.angle);
+  for (int i = -BAR_W / 2; i < BAR_W / 2; i++) {
+    for (int j = -BAR_H / 2; j < BAR_H / 2; j++) {
+      int rx = bar.x + (i * c - j * s);
+      int ry = bar.y + (i * s + j * c);
+      drawPixel(rx, ry, bar.color);
+    }
+  }
+}
+
+// Simple 5x7 Font Renderer (Scaled to ~15px)
+void drawText(int x, int y, String txt) {
+  // Simplified: Draws blocky numbers for the counter
+  for (int i = 0; i < txt.length(); i++) {
+    for (int px = 0; px < 10; px++) {
+      for (int py = 0; py < 15; py++) {
+        drawPixel(x + (i * 12) + px, y + py, 0xFFFF);
       }
     }
   }
-  // Clear space after character
-  if (bg != color) {
-    for (uint8_t row = 0; row < 7; row++) {
-      drawPixel(x + 5, y + row, bg);
-    }
-  }
-}
-
-// Draw string (C-string)
-void drawString(uint16_t x, uint16_t y, const char* str, uint16_t color, uint16_t bg) {
-  uint16_t cursorX = x;
-  while (*str) {
-    drawChar(cursorX, y, *str, color, bg);
-    cursorX += FONT_WIDTH;
-    str++;
-  }
-}
-
-// Draw string (Arduino String)
-void drawString(uint16_t x, uint16_t y, String str, uint16_t color, uint16_t bg) {
-  drawString(x, y, str.c_str(), color, bg);
-}
-
-// Draw signal strength bar
-void drawSignalBar(uint16_t x, uint16_t y, int rssi, uint16_t width, uint16_t height) {
-  // RSSI typically ranges from -100 (weak) to -30 (strong)
-  int signalPercent = map(rssi, -100, -30, 0, 100);
-  signalPercent = constrain(signalPercent, 0, 100);
-  
-  uint16_t barWidth = (width * signalPercent) / 100;
-  
-  // Draw background (empty bar)
-  fillRect(x, y, x + width - 1, y + height - 1, GRAY);
-  
-  // Draw filled portion
-  if (barWidth > 0) {
-    uint16_t barColor;
-    if (signalPercent > 70) {
-      barColor = GREEN;
-    } else if (signalPercent > 40) {
-      barColor = YELLOW;
-    } else {
-      barColor = RED;
-    }
-    fillRect(x, y, x + barWidth - 1, y + height - 1, barColor);
-  }
-}
-
-// Draw lock icon (simple 8x8 bitmap)
-void drawLockIcon(uint16_t x, uint16_t y, uint16_t size, uint16_t color) {
-  const uint8_t lockIcon[8] = {
-    0x3C, 0x7E, 0x41, 0x41, 0x7F, 0x7F, 0x7F, 0x7F
-  };
-  
-  for (uint8_t row = 0; row < 8; row++) {
-    for (uint8_t col = 0; col < 8; col++) {
-      if (lockIcon[row] & (1 << (7 - col))) {
-        drawPixel(x + col, y + row, color);
-      }
-    }
-  }
-}
-
-// Sort APs by RSSI (strongest first)
-void sortAPsByRSSI() {
-  for (int i = 0; i < apCount - 1; i++) {
-    for (int j = 0; j < apCount - i - 1; j++) {
-      if (apList[j].rssi < apList[j + 1].rssi) {
-        APInfo temp = apList[j];
-        apList[j] = apList[j + 1];
-        apList[j + 1] = temp;
-      }
-    }
-  }
-}
-
-// Scan WiFi networks
-int scanWiFi() {
-  apCount = 0;
-  int n = WiFi.scanNetworks();
-  
-  if (n == 0) {
-    return 0;
-  }
-  
-  apCount = min(n, MAX_APS);
-  
-  for (int i = 0; i < apCount; i++) {
-    String ssid = WiFi.SSID(i);
-    ssid.toCharArray(apList[i].ssid, 33);
-    apList[i].rssi = WiFi.RSSI(i);
-    apList[i].encrypted = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
-  }
-  
-  WiFi.scanDelete();
-  sortAPsByRSSI();
-  
-  return apCount;
-}
-
-// Display WiFi list on screen
-void displayWiFiList() {
-  clearScreen(BLACK);
-  
-  // Header
-  drawString(5, 5, "WiFi Scanner", WHITE, BLACK);
-  drawString(5, 17, "--------------", GRAY, BLACK);
-  
-  int startY = 32;
-  int lineHeight = LINE_HEIGHT;
-  int maxLines = (DISPLAY_HEIGHT - startY - 20) / lineHeight;
-  
-  int displayCount = min(apCount, maxLines);
-  
-  for (int i = 0; i < displayCount; i++) {
-    int yPos = startY + (i * lineHeight);
-    
-    // Draw SSID (truncate if too long)
-    char ssidDisplay[18];
-    strncpy(ssidDisplay, apList[i].ssid, 17);
-    ssidDisplay[17] = '\0';
-    drawString(5, yPos, ssidDisplay, WHITE, BLACK);
-    
-    // Draw lock icon if encrypted
-    if (apList[i].encrypted) {
-      drawLockIcon(DISPLAY_WIDTH - 50, yPos + 2, 8, YELLOW);
-    }
-    
-    // Draw signal bar
-    drawSignalBar(DISPLAY_WIDTH - 40, yPos + 3, apList[i].rssi, 35, 6);
-  }
-  
-  // Show scan info at bottom
-  char infoStr[30];
-  sprintf(infoStr, "APs: %d", apCount);
-  drawString(5, DISPLAY_HEIGHT - 15, infoStr, GRAY, BLACK);
 }
 
 void setup() {
   Serial.begin(115200);
   
-  // Initialize display
+  // Allocate Framebuffer
+  frameBuffer = (uint16_t*)psramFound() ? (uint16_t*)ps_malloc(LCD_WIDTH * LCD_HEIGHT * 2) : (uint16_t*)malloc(LCD_WIDTH * LCD_HEIGHT * 2);
+
+  Serial.println("ESP32-C6 Temperature Sensor Example");
+    
   LCD_Init();
-  clearScreen(BLACK);
+  Set_Backlight(100);
+
+     // Configure temperature sensor
+    temperature_sensor_config_t temp_sensor_config = {
+        .range_min = 10,
+        .range_max = 50,
+        .clk_src = TEMPERATURE_SENSOR_CLK_SRC_DEFAULT
+    };
+    
+    // Install and enable
+    ESP_ERROR_CHECK(temperature_sensor_install(&temp_sensor_config, &temp_sensor));
+    ESP_ERROR_CHECK(temperature_sensor_enable(temp_sensor));
+
+  // WiFi AP Setup
+  WiFi.softAP("ESP32-Physics-Sim", ""); 
   
-  // Show startup message
-  drawString(10, 100, "WiFi Scanner", WHITE, BLACK);
-  drawString(10, 120, "Starting...", GRAY, BLACK);
-  
-  // Initialize WiFi
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
-  delay(100);
-  
-  Serial.println("Setup complete");
+  server.on("/", handleRoot);
+  server.on("/speedUp", []() { speedMultiplier += 0.2; handleRoot(); });
+  server.on("/speedDown", []() { speedMultiplier -= 0.2; handleRoot(); });
+  server.on("/pause", []() { barPaused = !barPaused; handleRoot(); });
+  server.on("/reset", []() { ball.x = 80; ball.y = 160; contactCount = 0; handleRoot(); });
+  server.begin();
 }
 
 void loop() {
-  // Scan for networks
-  Serial.println("Scanning...");
-  int found = scanWiFi();
+
+  float temp;
+    esp_err_t result = temperature_sensor_get_celsius(temp_sensor, &temp);
+    
+    if (result == ESP_OK) {
+        Serial.printf("Temperature: %.2f °C / %.2f °F\n", 
+                      temp, temp * 1.8 + 32);
+    } else {
+        Serial.println("Error reading temperature");
+    }
+    
+  server.handleClient();
   
-  if (found > 0) {
-    Serial.printf("Found %d networks\n", found);
-    displayWiFiList();
-  } else {
-    clearScreen(BLACK);
-    drawString(10, 100, "No networks", WHITE, BLACK);
-    drawString(10, 120, "found...", GRAY, BLACK);
+  updatePhysics();
+  
+  clearBuffer();
+  drawBall();
+  drawBar();
+  
+  // Counter & WiFi Signal
+  drawText(10, 10, String(contactCount));
+  
+  // Get RSSI of first station (if any)
+  wifi_sta_list_t stationList;
+  esp_wifi_ap_get_sta_list(&stationList);
+  if (stationList.num > 0) {
+     drawText(120, 10, "W"); // Indicate WiFi active
   }
+
+  // Push buffer to LCD
+  LCD_addWindow(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 1, frameBuffer);
   
-  // Wait before next scan
-  delay(5000);
+  delay(1000); // Target ~60fps
 }
